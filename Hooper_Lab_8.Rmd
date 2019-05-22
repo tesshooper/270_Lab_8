@@ -7,6 +7,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+### Part 1. Setup R
 ```{r, Load Packages, echo = FALSE, messsage = FALSE, warning = FALSE, include = FALSE}
 
 
@@ -20,6 +21,10 @@ library(dplyr)        #NOT spatial - this is a data wrangling library
 library(RColorBrewer) #Also not spatial - used to set the spectral color scheme 
 
 ```
+
+
+### Part 2. Import and Visualize Data
+
 
 ```{r, Import Raster Data, echo = FALSE, messsage = FALSE, warning = FALSE, include = FALSE}
 
@@ -38,4 +43,195 @@ all_threats <- raster("full_modelnv.tif")
 
 
 ```
+
+#### Plot the All Threats Layer
+```{r, Plot the raster, echo = FALSE}
+
+# Plot the all_threats raster data
+
+plot(all_threats, col=cols)
+
+
+# add a landmap to your shapefile. the add=T argument tells R to add it to the existing plot.
+# make sure you understand what the other arguments do
+
+
+plot(all_threats,ext=extent(-130,-110,24,50),col=cols) # Lat/Long
+map('world',fill=T,add=T,col='gray') # Map package. 'world' is something that the map package recognizes. 'Fill' means we want to fill in the map. 
+
+
+#### Looking at the all_threats layer: ####
+
+#class       : RasterLayer 
+
+#dimensions  : 3659, 4407, 16125213  (nrow, ncol, ncell)  
+### how many rows, columns, and cells in the raster data
+
+
+#resolution  : 0.009448675, 0.009448675  (x, y)           
+### Resolution of each of the 16 million pixels (distance in whatever unit is in the coordinate reference line). Degrees on each side (Converted to Lat/long)? 
+
+#extent      : -138.7553, -97.11496, 21.61105, 56.18375  (xmin, xmax, ymin, ymax)   
+### How big the plot is? 
+
+#coord. ref. : +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0      
+### GeoTIFF metadata. This line in the file tells any program that reads it where on Earth to put it and how big each cell is. Coordinate reference system. 
+
+#data source : H:\270_Lab_8\270_Lab_8\full_modelnv.tif 
+### Where the data is coming from
+
+#names       : full_modelnv 
+### 
+
+
+```
+
+#### Change the extent of raster layer
+```{r, Change Extent, echo = FALSE}
+
+# Plot all threats zoomed in on Santa Barbara Channel
+
+sb_plot <- plot(all_threats,col=cols,ext=extent(-121,-117,32,35),main="Cumulative Threats") # A good extent for the Santa Barbara Channel
+
+# zoom() can also work but will not work in RMarkdown - but you can do this in the console
+
+# zoom(all_threats,col=cols) #Interactive code not run in html
+
+```
+
+### Raster Data Attributes
+
+Beyond visualization, we can also look at some simple characteristics of the data itself. Just calling the name of our raster will give us some information:
+
+
+QUESTION: What is the minimum value of all raster cells in our threats layer?
+
+We can look at the frequency histogram of raster cell values.
+
+
+```{r, Histogram, echo = FALSE}
+
+
+hist(all_threats, main="Cumulative Threats Frequency")
+
+
+```
+
+
+Also, the function cellStats() allows us to run some basic statistics. Type ?cellStats to read what the function can do
+
+```{r, Basic Statistics}
+
+
+cellStats(all_threats,mean) # Want to get the mean of the all_threats raster
+## [1] 14.00092
+
+# QUESTION: What is the standard deviation of all raster cells in our threats layer?
+
+cellStats(all_threats, sd)
+# 2.958941
+
+
+```
+
+
+### Part 3: Raster Calculations
+
+Quickly visualizing raster data in R is nice, but the real power of raster analysis is when we can perform calculations that link two or more raster layers. If you remember from our hotspots lab, our first task was to overlay the top 20% of cumulative threats with the top 20% of species richness, to find threat hotspots. This will require 4 steps:
+
+1. Import the data (already done for threats)
+2. Resample the data to the same resolution
+3. Reclassify the data to find the top 20%
+4. Overlay the data and find hotspots
+
+#### Import Species Data
+The species data is in the Species data directory, and we import it just as we did the threats layer, by providing a full path name. We can then check its attributes.
+
+```{r, Import species data, echo = FALSE}
+
+## Import data for all california species layer
+
+
+# Make sure the pathname to the data is correct
+all_spp <- raster("ca_curr_sp_rich.tif")
+
+all_spp
+
+plot(all_spp,col=cols)
+
+
+# Look at the layer:
+
+# class       : RasterLayer 
+# dimensions  : 56, 40, 2240  (nrow, ncol, ncell)
+# resolution  : 0.5, 0.5  (x, y) --> degrees
+# extent      : -129.5, -109.5, 21.5, 49.5  (xmin, xmax, ymin, ymax)
+# coord. ref. : +proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0 
+# data source : H:\270_Lab_8\270_Lab_8\ca_curr_sp_rich.tif 
+# names       : ca_curr_sp_rich 
+# values      : 0, 3099  (min, max) --> 3099 species!
+
+
+
+```
+
+
+#### Cropping and Resolving
+
+If you type all_spp and all_threats (or plot them), you should be able to tell that we may run into problems trying to immediately do calculations on them, as they have different extents and resolutions. Two helpful functions to deal with these problems are crop() and resample().
+
+**QUESTION: Before doing the next step, which of our two rasters has a greater extent? a higher (finer) resolution? What does this mean about how we should resample?**
+
+<br>
+
+**Crop**
+
+We first crop the threats layer to the extent of the species layer
+
+
+```{r, Crop Threats Layer }
+
+threats_crop <- crop(all_threats,all_spp) #Crop the threats layer to the same extent at species
+
+threats_crop #extent is now the same for both layers
+
+```
+
+** We've just changed the extent (i.e. size of the plot), but now we have to change the resolution by resampling**
+
+
+```{r, Resample}
+
+#Now the threats layer has the same extent as the species layer. But we have to resample the species layer such that it has the same resolution as the threats layer.
+
+#?resample see what the resample function does
+# NOTE: the progress='text' argument is a great tool: it prints out the progress
+# of a longer-running function into the console, so you can see how the operation is going
+
+# the method='ngb' argument specifies that we want to use a nearest neighbor algorithm to resample, instead of interpolation
+
+spp_res <- resample(all_spp,threats_crop,method='ngb',progress='text')
+
+## Method - because we're going from bigger squares to smaller squares, we need to know how to mathematically calculate the values of the new squares. What should the value of the little squares be? Because the squares are referring to species richness, we cannot have fractions, so we must interpolate (ngb). It will take the value of the closest square from the larger squares. This is kind of making up data so you must be careful. 
+
+spp_res
+
+
+```
+
+
+#### Raster Stack
+We can check that the two layers will line up decently by using the stack() function. stack() creates a RasterStack object, which is basically just exactly what it sounds like: A single object holding multiple raster layers. This isn’t as useful for just a couple of layers, but it will likely be useful to you later on when you are combining multiple threat layers.
+
+```{r, Raster Stack}
+
+spp_threat_stack <- stack(threats_crop,spp_res)
+plot(spp_threat_stack,col=cols)
+
+# Will NOT stack if they are not the same extent and resolution
+
+#Even though this layers still look similar to how they did before, the fact that they stacked together means they are likely ready for combination.
+
+```
+
 
