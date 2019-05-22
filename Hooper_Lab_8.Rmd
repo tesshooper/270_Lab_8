@@ -7,9 +7,35 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, Load Packages, echo = FALSE}
+```{r, Load Packages, echo = FALSE, messsage = FALSE, warning = FALSE, include = FALSE}
+
 
 library(tidyverse)
+library(raster)       #Main raster library with nearly all functions used in this analysis
+library(rgdal)        #Spatial library - most functions used from rgdal are for vectors (shapefiles)
+library(rasterVis)    #Useful for raster visualizations
+library(maps)         #Has a database of maps. I use this to add a map to my raster to visualize land boundaries
+library(rgeos)        #Need this library for topology operations on geometries
+library(dplyr)        #NOT spatial - this is a data wrangling library
+library(RColorBrewer) #Also not spatial - used to set the spectral color scheme 
+
+```
+
+```{r, Import Raster Data, echo = FALSE, messsage = FALSE, warning = FALSE, include = FALSE}
+
+# view some color palettes
+# display.brewer.all()
+# rainbow color scheme
+cols = rev(colorRampPalette(brewer.pal(11, 'Spectral'))(255)) 
+
+#setting smaller margins for plotting
+par(mar=c(2,2,1,1))
+
+
+# Change this path to the path to the lab data: "R:/Spring2019/ESM270/Week7_R_lab/Threats_data/full_modelnv.tif"
+all_threats <- raster("full_modelnv.tif")
+
+
 
 ```
 
